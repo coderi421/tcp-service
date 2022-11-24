@@ -1,14 +1,22 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"github.com/CoderI421/tcp-service/frame"
 	"github.com/CoderI421/tcp-service/metrics"
 	"github.com/CoderI421/tcp-service/packet"
 	"net"
+	"net/http"
+	_ "net/http/pprof"
 )
 
 func main() {
+	// 启动 pprof
+	go func() {
+		http.ListenAndServe(":6060", nil)
+	}()
+
 	listen, err := net.Listen("tcp", ":8888")
 	if err != nil {
 		fmt.Println("listen error: ", err)
@@ -42,13 +50,18 @@ func handleConn(c net.Conn) {
 	}()
 
 	frameCodec := frame.NewCodec()
+	// 建立 connection 的读缓冲区
+	rbuf := bufio.NewReader(c)
+	// 建立 connection 的写缓冲区
+	wbuf := bufio.NewWriter(c)
+	defer wbuf.Flush()
 
 	for {
 		// read from the connection
 
 		// decode the frame to get the payload
 		// is undecoded packet
-		framePayload, err := frameCodec.Decode(c)
+		framePayload, err := frameCodec.Decode(rbuf)
 		if err != nil {
 			fmt.Println("handleConn: frame decode error:", err)
 			return
@@ -66,7 +79,8 @@ func handleConn(c net.Conn) {
 
 		// write ack frame to the connection
 		// Frame 层编码
-		err = frameCodec.Encode(c, ackFramePayload)
+		// 使用 写缓冲区替换 c
+		err = frameCodec.Encode(wbuf, ackFramePayload)
 		if err != nil {
 			fmt.Println("handleConn: frame encode error:", err)
 			return
