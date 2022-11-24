@@ -111,6 +111,7 @@ func handlePacket(framePayload []byte) (ackFramePayload []byte, err error) {
 			ID:     submit.ID,
 			Result: 0,
 		}
+		packet.SubmitPool.Put(submit) // put back to submit pool
 		ackFramePayload, err = packet.Encode(submitAck)
 		if err != nil {
 			fmt.Println("handleConn: packet decode error:", err)

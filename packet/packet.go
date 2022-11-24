@@ -3,6 +3,7 @@ package packet
 import (
 	"bytes"
 	"fmt"
+	"sync"
 )
 
 // Packet协议定义
@@ -107,6 +108,12 @@ func (c *ConAck) Encode() ([]byte, error) {
 	return bytes.Join([][]byte{[]byte(c.ID[:8]), []byte{c.Result}}, nil), nil
 }
 
+var SubmitPool = sync.Pool{
+	New: func() interface{} {
+		return &Submit{}
+	},
+}
+
 // Decode 根据 frame 的解析结果，继续解析
 func Decode(packet []byte) (Packet, error) {
 	commandID := packet[0] // 1 byte: commandID 类型
@@ -114,33 +121,35 @@ func Decode(packet []byte) (Packet, error) {
 
 	switch commandID {
 	case CommandConn:
-		c := Con{}
+		c := &Con{}
 		err := c.Decode(pktBody)
 		if err != nil {
 			return nil, err
 		}
-		return &c, nil
+		return c, nil
 	case CommandConnAck:
-		c := ConAck{}
+		c := &ConAck{}
 		err := c.Decode(pktBody)
 		if err != nil {
 			return nil, err
 		}
-		return &c, nil
+		return c, nil
 	case CommandSubmit:
-		s := Submit{}
+		// s := Submit{}
+		// 优化堆内存 使用池化 Submit
+		s := SubmitPool.Get().(*Submit) // get submit pool
 		err := s.Decode(pktBody)
 		if err != nil {
 			return nil, err
 		}
-		return &s, nil
+		return s, nil
 	case CommandSubmitAck:
-		s := SubmitAck{}
+		s := &SubmitAck{}
 		err := s.Decode(pktBody)
 		if err != nil {
 			return nil, err
 		}
-		return &s, nil
+		return s, nil
 	default:
 		return nil, fmt.Errorf("unknown commandID [%d]", commandID)
 	}
