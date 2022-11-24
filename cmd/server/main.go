@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/CoderI421/tcp-service/frame"
+	"github.com/CoderI421/tcp-service/metrics"
 	"github.com/CoderI421/tcp-service/packet"
 	"net"
 )
@@ -32,8 +33,14 @@ func main() {
 
 // handleConn 第一层，解析 Frame 层
 func handleConn(c net.Conn) {
-	// c -> 和每个客户端的连接
-	defer c.Close()
+
+	metrics.ClientConnected.Inc() // conn 连接数 +1
+	defer func() {
+		metrics.ClientConnected.Dec() // conn 连接数 -1
+		// c -> 和每个客户端的连接
+		defer c.Close()
+	}()
+
 	frameCodec := frame.NewCodec()
 
 	for {
@@ -46,6 +53,8 @@ func handleConn(c net.Conn) {
 			fmt.Println("handleConn: frame decode error:", err)
 			return
 		}
+		// prometheus 接收数据数 +1
+		metrics.ReqRecvTotal.Add(1)
 
 		// do something with the packet
 		// packet层的响应
@@ -62,6 +71,9 @@ func handleConn(c net.Conn) {
 			fmt.Println("handleConn: frame encode error:", err)
 			return
 		}
+
+		// prometheus 响应数据数 +1
+		metrics.RspSendTotal.Inc()
 	}
 }
 
